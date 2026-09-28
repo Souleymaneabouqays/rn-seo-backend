@@ -55,7 +55,19 @@ export async function GET(request: Request) {
         const shared=[...a].filter(x=>b.has(x));
         const overlap=Math.round(100*shared.length/Math.max(1,Math.min(a.size,b.size)));
         const article=good.find(x=>x.type==="posts"),landing=good.find(x=>x.type==="pages");
-        const focus = good.map((x:any)=>({url:x.url,currentTitle:x.title,proposedTitle:x.type==="pages" ? (x.title.toLowerCase().includes("marseille") ? x.title : x.title+" à Marseille") : x.title,role:x.type==="pages"?"Page de service locale":"Article informationnel"}));
+        const gscQueries=(reqUrl.searchParams.get("queries")||"").split("|").filter(Boolean);
+        const cluster=reqUrl.searchParams.get("cluster")||gscQueries[0]||"";
+        const city=(cluster.match(/marseille|toulon|sanary|brignoles?|seyne|six fours?|valette/i)||[])[0]||"";
+        const service=(cluster.match(/punaise|cafard|guepe|frelon|deratisation|desinfection/i)||[])[0]||"nuisibles";
+        const cap=(s:string)=>s?s.charAt(0).toUpperCase()+s.slice(1):s;
+        const focus = good.map((x:any)=>{
+          const role=x.type==="pages"?"Page de service locale":"Article informationnel";
+          let proposedTitle=x.title;
+          let objective="";
+          if(x.type==="pages"){proposedTitle=service==="punaise"?"Traitement des punaises de lit"+(city?" à "+cap(city):""):cap(service)+(city?" à "+cap(city):"");objective="Capter les requêtes transactionnelles et locales : traitement, intervention, entreprise, devis."}
+          else{proposedTitle=service==="punaise"?"Punaises de lit"+(city?" à "+cap(city):"")+" : que faire en cas d’infestation ?":x.title;objective="Répondre aux recherches informationnelles : signes, causes, risques, gestes à faire et moment où contacter un professionnel."}
+          return {url:x.url,currentTitle:x.title,proposedTitle,role,objective,titleChanged:proposedTitle.trim()!==x.title.trim()};
+        });
         comparison={focus,overlap,sharedTerms:shared.slice(0,20),intent:article&&landing?"Les deux URL ont des rôles différents : un article informationnel et une page de service. Elles peuvent coexister si leurs intentions, titres et maillage sont clairement séparés.":"Les deux URL appartiennent au même type de contenu ; leur intention doit être différenciée avant toute modification.",recommendation:article&&landing?"Conserver les deux URL pour l\'instant. Renforcer la page de service sur l\'intention commerciale locale et l\'article sur l\'intention informationnelle, puis créer un lien interne clair de l\'article vers la page de service.":"Ne rien fusionner automatiquement. Vérifier quelle URL doit porter l\'intention principale puis différencier ou consolider les contenus après validation.",plan:article&&landing?[{target:landing.url,label:"Page de service",action:"Renforcer l’intention commerciale locale",details:"Conserver cette URL comme page principale pour la requête de service locale. Clarifier le titre et les premiers blocs autour du traitement, de l’intervention et de Marseille."},{target:article.url,label:"Article",action:"Renforcer l’intention informationnelle",details:"Conserver l’article pour répondre aux questions et symptômes. Éviter qu’il reprenne le même angle commercial que la page de service."},{target:article.url,label:"Maillage interne",action:"Créer un lien vers la page de service",details:"Ajouter dans l’article un lien contextuel clair vers la page de service afin d’indiquer la hiérarchie SEO."}]:[{target:good[0].url,label:"À valider",action:"Définir l’URL principale",details:"Comparer l’intention des deux contenus avant toute fusion, redirection ou réécriture."}]};
       }
       return NextResponse.json({ok:true,analysis:true,pages:docs,comparison});
