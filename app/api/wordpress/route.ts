@@ -45,7 +45,19 @@ export async function GET(request: Request) {
         }
         docs.push(found || {found:false,url:raw,slug});
       }
-      return NextResponse.json({ok:true,analysis:true,pages:docs});
+      const good:any[] = docs.filter((d:any)=>d.found);
+      let comparison:any = null;
+      if (good.length >= 2) {
+        const norm=(s:string)=>s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9 ]/g," ");
+        const stop=new Set(["avec","dans","pour","plus","vous","votre","cette","comme","mais","nous","des","les","une","sur","par","est","sont","aux","qui","que"]);
+        const terms=(s:string)=>new Set(norm(s).split(/\s+/).filter(w=>w.length>3&&!stop.has(w)));
+        const a=terms(good[0].content),b=terms(good[1].content);
+        const shared=[...a].filter(x=>b.has(x));
+        const overlap=Math.round(100*shared.length/Math.max(1,Math.min(a.size,b.size)));
+        const article=good.find(x=>x.type==="posts"),landing=good.find(x=>x.type==="pages");
+        comparison={overlap,sharedTerms:shared.slice(0,20),intent:article&&landing?"Les deux URL ont des rôles différents : un article informationnel et une page de service. Elles peuvent coexister si leurs intentions, titres et maillage sont clairement séparés.":"Les deux URL appartiennent au même type de contenu ; leur intention doit être différenciée avant toute modification.",recommendation:article&&landing?"Conserver les deux URL pour l'instant. Renforcer la page de service sur l'intention commerciale locale et l'article sur l'intention informationnelle, puis créer un lien interne clair de l'article vers la page de service.":"Ne rien fusionner automatiquement. Vérifier quelle URL doit porter l'intention principale puis différencier ou consolider les contenus après validation."};
+      }
+      return NextResponse.json({ok:true,analysis:true,pages:docs,comparison});
     }
     const [meRes, pagesRes, postsRes] = await Promise.all([
       fetch(`${c.url}/wp-json/wp/v2/users/me?context=edit`, {
