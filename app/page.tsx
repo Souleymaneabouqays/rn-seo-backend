@@ -10,7 +10,8 @@ type WpData={ok:boolean;site?:string;user?:{name:string};counts?:{pagesReturned:
 
 export default function Home(){
  const [active,setActive]=useState("Tableau de bord");
- const [wp,setWp]=useState<WpData|null>(null);\n const [gsc,setGsc]=useState(false);
+ const [wp,setWp]=useState<WpData|null>(null);
+ const [gsc,setGsc]=useState(false);
  useEffect(()=>{fetch("/api/wordpress").then(r=>r.json()).then(setWp).catch(()=>setWp({ok:false,error:"Connexion impossible"})); fetch("/api/google/status").then(r=>r.json()).then(d=>setGsc(!!d.connected)).catch(()=>{})},[]);
  return <main><aside><div className="brand"><div className="shield">RN</div><div><b>Riviera Nuisibles</b><small>SEO COCKPIT</small></div></div><p className="section">PILOTAGE</p>{nav.map((n)=><button className={"nav "+(active===n[1]?"active":"")} key={n[1]} onClick={()=>setActive(n[1])}><span>{n[0]}</span>{n[1]}{n[1]==="Agent SEO"&&<em>3</em>}</button>)}</aside><section className="content">{active==="Pages & Articles"?<Content wp={wp}/>:<Dashboard wp={wp} gsc={gsc}/>}</section></main>
 }
