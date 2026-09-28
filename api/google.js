@@ -31,7 +31,9 @@ module.exports = async function handler(req, res) {
       headers: {
         'Authorization': auth,
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
+      redirect: 'manual',
     };
 
     if (req.method === 'POST') {
@@ -40,6 +42,15 @@ module.exports = async function handler(req, res) {
     }
 
     const apiRes = await fetch(targetUrl.toString(), fetchOptions);
+
+    if (apiRes.status >= 300 && apiRes.status < 400) {
+      return res.status(401).json({
+        error: 'Token expire ou invalide (Google redirige vers login)',
+        status: apiRes.status,
+        location: apiRes.headers.get('location')
+      });
+    }
+
     const text = await apiRes.text();
 
     try {
@@ -47,7 +58,7 @@ module.exports = async function handler(req, res) {
       return res.status(apiRes.status).json(data);
     } catch(e) {
       return res.status(500).json({
-        error: 'Google a retourne du HTML',
+        error: 'Reponse non-JSON de Google',
         status: apiRes.status,
         preview: text.substring(0, 300),
         url: targetUrl.toString()
