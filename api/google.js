@@ -17,10 +17,10 @@ module.exports = async function handler(req, res) {
 
   let targetUrl;
   try { targetUrl = new URL(decodeURIComponent(url)); }
-  catch (e) { return res.status(400).json({ error: 'invalid url' }); }
+  catch (e) { return res.status(400).json({ error: 'invalid url: ' + e.message }); }
 
   const isAllowed = ALLOWED_APIS.some(api => targetUrl.hostname === api);
-  if (!isAllowed) return res.status(403).json({ error: 'API non autorisee' });
+  if (!isAllowed) return res.status(403).json({ error: 'hostname non autorise: ' + targetUrl.hostname });
 
   const auth = req.headers['authorization'];
   if (!auth) return res.status(401).json({ error: 'Authorization header requis' });
@@ -28,13 +28,31 @@ module.exports = async function handler(req, res) {
   try {
     const fetchOptions = {
       method: req.method,
-      headers: { 'Authorization': auth, 'Content-Type': 'application/json' },
+      headers: {
+        'Authorization': auth,
+        'Content-Type': 'application/json',
+      },
     };
-    if (req.method === 'POST' && req.body) fetchOptions.body = JSON.stringify(req.body);
+
+    if (req.method === 'POST') {
+      const body = req.body ? JSON.stringify(req.body) : null;
+      if (body) fetchOptions.body = body;
+    }
 
     const apiRes = await fetch(targetUrl.toString(), fetchOptions);
-    const data = await apiRes.json();
-    return res.status(apiRes.status).json(data);
+    const text = await apiRes.text();
+
+    try {
+      const data = JSON.parse(text);
+      return res.status(apiRes.status).json(data);
+    } catch(e) {
+      return res.status(500).json({
+        error: 'Google a retourne du HTML',
+        status: apiRes.status,
+        preview: text.substring(0, 300),
+        url: targetUrl.toString()
+      });
+    }
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
