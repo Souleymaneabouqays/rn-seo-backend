@@ -15,12 +15,13 @@ module.exports = async function handler(req, res) {
   const { url } = req.query;
   if (!url) return res.status(400).json({ error: 'url param required' });
 
-  let targetUrl;
-  try { targetUrl = new URL(decodeURIComponent(url)); }
+  const rawUrl = decodeURIComponent(url);
+  let hostname;
+  try { hostname = new URL(rawUrl).hostname; }
   catch (e) { return res.status(400).json({ error: 'invalid url: ' + e.message }); }
 
-  const isAllowed = ALLOWED_APIS.some(api => targetUrl.hostname === api);
-  if (!isAllowed) return res.status(403).json({ error: 'hostname non autorise: ' + targetUrl.hostname });
+  const isAllowed = ALLOWED_APIS.some(api => hostname === api);
+  if (!isAllowed) return res.status(403).json({ error: 'hostname non autorise: ' + hostname });
 
   const auth = req.headers['authorization'];
   if (!auth) return res.status(401).json({ error: 'Authorization header requis' });
@@ -41,7 +42,7 @@ module.exports = async function handler(req, res) {
       if (body) fetchOptions.body = body;
     }
 
-    const apiRes = await fetch(targetUrl.toString(), fetchOptions);
+    const apiRes = await fetch(rawUrl, fetchOptions);
 
     if (apiRes.status >= 300 && apiRes.status < 400) {
       return res.status(401).json({
@@ -61,7 +62,7 @@ module.exports = async function handler(req, res) {
         error: 'Reponse non-JSON de Google',
         status: apiRes.status,
         preview: text.substring(0, 300),
-        url: targetUrl.toString()
+        url: rawUrl
       });
     }
   } catch (err) {
