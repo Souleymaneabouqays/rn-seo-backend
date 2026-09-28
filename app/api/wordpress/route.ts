@@ -10,7 +10,7 @@ function config() {
   return { url, username, password };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const c = config();
   if (!c) {
     return NextResponse.json(
@@ -21,6 +21,32 @@ export async function GET() {
 
   const auth = Buffer.from(`${c.username}:${c.password}`).toString("base64");
   try {
+    const reqUrl = new URL(request.url);
+    const analyzeUrls = reqUrl.searchParams.getAll("analyze");
+    if (analyzeUrls.length) {
+      const docs = [];
+      for (const raw of analyzeUrls.slice(0, 4)) {
+        const slug = new URL(raw).pathname.replace(/\/$/, "").split("/").filter(Boolean).pop() || "";
+        let found = null;
+        for (const type of ["pages", "posts"]) {
+          const res = await fetch(c.url + "/wp-json/wp/v2/" + type + "?slug=" + encodeURIComponent(slug) + "&context=edit&_fields=id,slug,link,title,content,excerpt,modified", {
+            headers: { Authorization: "Basic " + auth }, cache: "no-store"
+          });
+          if (res.ok) {
+            const items = await res.json();
+            if (items[0]) {
+              const x = items[0];
+              const html = x.content?.raw || x.content?.rendered || "";
+              const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+              found = { found:true, type, id:x.id, url:x.link, slug:x.slug, title:(x.title?.raw || x.title?.rendered || "").replace(/<[^>]+>/g,""), words:text ? text.split(/\s+/).length : 0, content:text.slice(0,10000), modified:x.modified };
+              break;
+            }
+          }
+        }
+        docs.push(found || {found:false,url:raw,slug});
+      }
+      return NextResponse.json({ok:true,analysis:true,pages:docs});
+    }
     const [meRes, pagesRes, postsRes] = await Promise.all([
       fetch(`${c.url}/wp-json/wp/v2/users/me?context=edit`, {
         headers: { Authorization: `Basic ${auth}` },
