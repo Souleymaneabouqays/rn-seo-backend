@@ -44,8 +44,8 @@ function Keywords({data}:{data:GData|null}){return <><header><div><p className="
 function DataTable({title,rows,label}:{title:string,rows:GRow[],label:string}){return <div className="panel contentPanel"><div className="contentToolbar"><div><b>{title}</b><p>Données Search Console</p></div></div><div className="contentTable"><div className="tableRow tableHead"><span>{label}</span><span>Clics</span><span>Impressions</span><span>Position</span></div>{rows.slice(0,50).map((r,i)=><div className="tableRow" key={(r.keys?.[0]||"")+i}><div><b>{label==="URL"?(new URL(r.keys[0])).pathname:r.keys[0]}</b></div><span>{Math.round(r.clicks)}</span><span>{Math.round(r.impressions)}</span><span>{r.position.toFixed(1)}</span></div>)}</div></div>}
 
 function AgentSEO({data}:{data:GData|null}){
- const [selected,setSelected]=useState<Cannibal|null>(null); const [wpAnalysis,setWpAnalysis]=useState<any>(null); const [loading,setLoading]=useState(false); const [approved,setApproved]=useState<Record<string,boolean>>({}); const [precheck,setPrecheck]=useState<any>(null); const [finalConfirm,setFinalConfirm]=useState(false); const [dryRun,setDryRun]=useState<any>(null); const cases=data?.cannibalization||[];
- const analyze=async(x:Cannibal)=>{if(selected?.cluster===x.cluster){setSelected(null);setWpAnalysis(null);return}setSelected(x);setWpAnalysis(null);setApproved({});setPrecheck(null);setFinalConfirm(false);setDryRun(null);setLoading(true);try{const q=x.pages.slice(0,4).map(p=>"analyze="+encodeURIComponent(p.url)).join("&")+"&queries="+encodeURIComponent(x.queries.join("|"))+"&cluster="+encodeURIComponent(x.cluster);const r=await fetch("/api/wordpress?"+q);setWpAnalysis(await r.json())}catch{setWpAnalysis({ok:false,error:"Analyse WordPress impossible"})}finally{setLoading(false)}};
+ const [selected,setSelected]=useState<Cannibal|null>(null); const [wpAnalysis,setWpAnalysis]=useState<any>(null); const [loading,setLoading]=useState(false); const [approved,setApproved]=useState<Record<string,boolean>>({}); const [precheck,setPrecheck]=useState<any>(null); const [finalConfirm,setFinalConfirm]=useState(false); const [dryRun,setDryRun]=useState<any>(null); const [applyResult,setApplyResult]=useState<any>(null); const cases=data?.cannibalization||[];
+ const analyze=async(x:Cannibal)=>{if(selected?.cluster===x.cluster){setSelected(null);setWpAnalysis(null);return}setSelected(x);setWpAnalysis(null);setApproved({});setPrecheck(null);setFinalConfirm(false);setDryRun(null);setApplyResult(null);setLoading(true);try{const q=x.pages.slice(0,4).map(p=>"analyze="+encodeURIComponent(p.url)).join("&")+"&queries="+encodeURIComponent(x.queries.join("|"))+"&cluster="+encodeURIComponent(x.cluster);const r=await fetch("/api/wordpress?"+q);setWpAnalysis(await r.json())}catch{setWpAnalysis({ok:false,error:"Analyse WordPress impossible"})}finally{setLoading(false)}};
  return <><header><div><p className="eyebrow">AGENT SEO · MODE APPROBATION</p><h1>Agent SEO</h1><p className="sub">Analyse les signaux réels avant toute modification de WordPress.</p></div></header>
  <div className="stats"><Card k="Cas détectés" v={data?.ok?String(cases.length):"—"} s="Cannibalisations qualifiées"/><Card k="Priorité élevée" v={data?.ok?String(cases.filter(x=>x.severity==="Élevée").length):"—"} s="À examiner en premier"/><Card k="Source" v="GSC" s="Données Search Console"/><Card k="Mode" v="Manuel" s="Aucune modification automatique"/></div>
  <div className="panel contentPanel"><div className="contentToolbar"><div><b>File d'analyse</b><p>Cliquez sur Analyser pour déplier le diagnostic directement sous le cas.</p></div></div>
@@ -90,5 +90,25 @@ function AgentSEO({data}:{data:GData|null}){
   }
 }}>{dryRun?.loading?"Simulation complète en cours…":finalConfirm?"Simuler l’application des 3 modifications 🔒":"Confirmez pour continuer"}</button>
 <small>Simulation complète : le serveur reçoit les futurs contenus, mais aucune écriture WordPress n’est autorisée.</small>
-{dryRun&&!dryRun.loading&&<p>{dryRun.ok?"✓ Simulation réussie — les 3 actions sont prêtes, WordPress n’a pas été modifié.":"⚠ Simulation refusée — aucune modification WordPress effectuée."}</p>}</div>}</div>}</div></div>}{Object.values(approved).some(Boolean)&&Object.values(approved).filter(Boolean).length!==3&&<button className="ghost" disabled>Application WordPress verrouillée 🔒</button>}</div></div></div><div style={{marginTop:18}}><b>Plan de correction proposé</b>{wpAnalysis.comparison.plan?.map((step:any,i:number)=><div className="action" key={i}><span className="badge info">{i+1}</span><div><b>{step.label} · {step.action}</b><p>{step.details}</p><small>{new URL(step.target).pathname}</small></div></div>)}</div><p><b>Aucune modification n'a été appliquée à WordPress.</b> Le plan doit être approuvé avant toute écriture.</p></div>}</div>:<p>{wpAnalysis?.error||"Préparation de l'analyse…"}</p>}</div></div>}</div>)}</div></div></>
+{dryRun&&!dryRun.loading&&<p>{dryRun.ok?"✓ Simulation réussie — les 3 actions sont prêtes, WordPress n’a pas été modifié.":"⚠ Simulation refusée — aucune modification WordPress effectuée."}</p>}{applyResult?.ok&&<div style={{marginTop:12,padding:"12px",border:"1px solid #dfe7e2",borderRadius:10}}>
+<b>Modification WordPress appliquée</b>
+<p>✓ Écriture vérifiée sur WordPress.</p>
+<p>✓ Version précédente conservée pour restauration.</p>
+{applyResult.link&&<a href={applyResult.link} target="_blank" rel="noreferrer">Vérifier la page ↗</a>}
+<div style={{marginTop:10}}><button className="ghost" disabled={applyResult.rollbackLoading} onClick={async()=>{
+  if(!window.confirm("Restaurer la version WordPress précédente ?"))return;
+  setApplyResult((x:any)=>({...x,rollbackLoading:true}));
+  try{
+    const r=await fetch("/api/wordpress/apply",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+      id:applyResult.id,type:applyResult.type,expectedModified:applyResult.modified,
+      expectedContent:applyResult.currentContent||"",proposedContent:applyResult.currentContent||"",
+      mode:"rollback",confirmation:"ROLLBACK_WORDPRESS_CONTENT",
+      rollbackContent:applyResult.previousContent
+    })});
+    const x=await r.json();
+    setApplyResult((old:any)=>({...old,rollbackLoading:false,rollback:x}));
+  }catch{setApplyResult((old:any)=>({...old,rollbackLoading:false,rollback:{ok:false}}));}
+}}>{applyResult.rollbackLoading?"Restauration en cours…":"Annuler / Restaurer la version précédente"}</button></div>
+{applyResult.rollback&&<p>{applyResult.rollback.ok&&applyResult.rollback.rolledBack?"✓ Version précédente restaurée et vérifiée.":"⚠ Restauration non effectuée."}</p>}
+</div>}</div>}</div>}</div></div>}{Object.values(approved).some(Boolean)&&Object.values(approved).filter(Boolean).length!==3&&<button className="ghost" disabled>Application WordPress verrouillée 🔒</button>}</div></div></div><div style={{marginTop:18}}><b>Plan de correction proposé</b>{wpAnalysis.comparison.plan?.map((step:any,i:number)=><div className="action" key={i}><span className="badge info">{i+1}</span><div><b>{step.label} · {step.action}</b><p>{step.details}</p><small>{new URL(step.target).pathname}</small></div></div>)}</div><p><b>Aucune modification n'a été appliquée à WordPress.</b> Le plan doit être approuvé avant toute écriture.</p></div>}</div>:<p>{wpAnalysis?.error||"Préparation de l'analyse…"}</p>}</div></div>}</div>)}</div></div></>
 }
