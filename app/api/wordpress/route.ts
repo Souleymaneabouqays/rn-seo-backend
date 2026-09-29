@@ -38,7 +38,21 @@ export async function GET(request: Request) {
               const x = items[0];
               const html = x.content?.raw || x.content?.rendered || "";
               const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-              found = { found:true, type, id:x.id, url:x.link, slug:x.slug, title:(x.title?.raw || x.title?.rendered || "").replace(/<[^>]+>/g,""), words:text ? text.split(/\s+/).length : 0, content:text.slice(0,10000), rawContent:String(x.content?.raw || x.content?.rendered || ""), modified:x.modified };
+              let builder="wordpress";
+              let elementorEditMode="";
+              let elementorData="";
+              try{
+                const metaRes=await fetch(c.url+"/wp-json/wp/v2/"+type+"/"+x.id+"?context=edit&_fields=meta",{
+                  headers:{Authorization:"Basic "+auth},cache:"no-store"
+                });
+                if(metaRes.ok){
+                  const meta=(await metaRes.json())?.meta||{};
+                  elementorEditMode=String(meta._elementor_edit_mode||"");
+                  elementorData=typeof meta._elementor_data==="string"?meta._elementor_data:JSON.stringify(meta._elementor_data||"");
+                  if(elementorEditMode==="builder"||elementorData.length>10)builder="elementor";
+                }
+              }catch{}
+              found = { found:true, type, id:x.id, url:x.link, slug:x.slug, title:(x.title?.raw || x.title?.rendered || "").replace(/<[^>]+>/g,""), words:text ? text.split(/\s+/).length : 0, content:text.slice(0,10000), rawContent:String(x.content?.raw || x.content?.rendered || ""), modified:x.modified, builder, elementor:{detected:builder==="elementor",editMode:elementorEditMode,dataAvailable:elementorData.length>10} };
               break;
             }
           }
