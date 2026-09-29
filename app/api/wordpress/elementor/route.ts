@@ -31,7 +31,7 @@ export async function POST(req:Request){
   if(!sameOrigin(req))return NextResponse.json({ok:false,error:"Origine refusée."},{status:403});
   try{
     const b=await req.json();
-    const {id,type,widgetId,field="editor",proposedValue,expectedModified,dryRun=true,confirmation}=b||{};
+    const {id,type,widgetId,field="editor",proposedValue,expectedModified,dryRun=true,confirmation,prepareOnly=false}=b||{};
     if(!id||!["pages","posts"].includes(type)||!widgetId||typeof proposedValue!=="string"||!expectedModified)
       return NextResponse.json({ok:false,error:"Données Elementor incomplètes."},{status:400});
 
@@ -51,7 +51,7 @@ export async function POST(req:Request){
       return NextResponse.json({ok:false,error:"Widget Elementor ciblé introuvable."},{status:404});
     const proposedData=JSON.stringify(tree);
 
-    if(dryRun===true)return NextResponse.json({ok:true,dryRun:true,locked:true,widgetId,field,changed:proposedData!==previousData,message:"Simulation Elementor réussie. Aucune écriture."});
+    if(dryRun===true||prepareOnly===true)return NextResponse.json({ok:true,dryRun:true,prepared:true,locked:true,widgetId,field,changed:proposedData!==previousData,writeEnabled:process.env.WORDPRESS_WRITE_ENABLED==="true",message:"Modification Elementor préparée et validée. Aucune écriture."});
     if(process.env.WORDPRESS_WRITE_ENABLED!=="true")return NextResponse.json({ok:true,ready:true,locked:true,writeEnabled:false,message:"Écriture Elementor désactivée côté serveur."});
     if(confirmation!=="APPLY_ELEMENTOR_WIDGET_CHANGE")return NextResponse.json({ok:false,error:"Confirmation Elementor manquante."},{status:400});
 
