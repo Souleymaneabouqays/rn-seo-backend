@@ -111,7 +111,13 @@ export async function POST(req:Request){
       };
       verifiedWidgetValue=findValue(verifyTree);
     }catch{}
-    return NextResponse.json({ok:true,written:true,verified:true,widgetId,field,id:after.id,link:after.link,modified:after.modified,previousData,verifiedWidgetValue,renderRefreshNeeded:true,message:"Widget Elementor modifié et vérifié dans les données Elementor. Le rendu public doit encore être contrôlé."});
+    let cacheCleared=false,cacheClearDetail="";
+    try{
+      const cr=await fetch(`${c.url}/wp-json/riviera-seo/v1/elementor/clear-cache`,{method:"POST",headers:{...headers,"Content-Type":"application/json"},body:JSON.stringify({post_id:after.id}),cache:"no-store"});
+      cacheCleared=cr.ok;
+      if(!cr.ok)cacheClearDetail=(await cr.text()).slice(0,300);
+    }catch(e){cacheClearDetail=e instanceof Error?e.message:"Purge Elementor impossible";}
+    return NextResponse.json({ok:true,written:true,verified:true,widgetId,field,id:after.id,link:after.link,modified:after.modified,previousData,verifiedWidgetValue,cacheCleared,cacheClearDetail,renderRefreshNeeded:!cacheCleared,message:cacheCleared?"Widget Elementor modifié, vérifié et cache Elementor vidé.":"Widget Elementor modifié et vérifié, mais la purge Elementor n’a pas été confirmée."});
   }catch(e){
     return NextResponse.json({ok:false,error:"Opération Elementor impossible.",detail:e instanceof Error?e.message:"Erreur inconnue"},{status:500});
   }
