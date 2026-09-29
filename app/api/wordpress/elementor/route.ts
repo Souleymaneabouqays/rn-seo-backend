@@ -61,7 +61,12 @@ export async function POST(req:Request){
       const restored=await rv.json();
       const restoredRaw=typeof restored.meta?._elementor_data==="string"?restored.meta._elementor_data:JSON.stringify(restored.meta?._elementor_data||"");
       if(restoredRaw!==JSON.stringify(parsedRollback))return NextResponse.json({ok:false,rolledBack:true,verified:false,error:"Snapshot Elementor restauré différent de l’original."},{status:409});
-      return NextResponse.json({ok:true,rolledBack:true,verified:true,id:restored.id,link:restored.link,modified:restored.modified,message:"Rollback Elementor appliqué et vérifié."});
+      let rollbackCacheCleared=false;
+      try{
+        const cr=await fetch(`${c.url}/wp-json/riviera-seo/v1/elementor/clear-cache`,{method:"POST",headers:{...headers,"Content-Type":"application/json"},body:JSON.stringify({post_id:restored.id}),cache:"no-store"});
+        rollbackCacheCleared=cr.ok;
+      }catch{}
+      return NextResponse.json({ok:true,rolledBack:true,verified:true,cacheCleared:rollbackCacheCleared,id:restored.id,link:restored.link,modified:restored.modified,message:rollbackCacheCleared?"Rollback Elementor appliqué, vérifié et cache vidé.":"Rollback Elementor appliqué et vérifié ; purge du cache non confirmée."});
     }
 
     if(mode==="inspect"){
