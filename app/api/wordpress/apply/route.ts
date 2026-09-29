@@ -65,6 +65,18 @@ export async function POST(req:Request){
       return NextResponse.json({ok:false,error:"Aucune modification de contenu à appliquer."},{status:400});
     }
 
+    // WordPress normally creates a revision when a published post/page is updated.
+    // Capture the latest revision id before writing so the response can expose
+    // a concrete rollback point in addition to the previous raw content.
+    let previousRevisionId:number|null=null;
+    try{
+      const revRes=await fetch(endpoint+"/revisions?context=edit&per_page=1&_fields=id,parent,modified",{headers,cache:"no-store"});
+      if(revRes.ok){
+        const revisions=await revRes.json();
+        previousRevisionId=Array.isArray(revisions)&&revisions[0]?.id?Number(revisions[0].id):null;
+      }
+    }catch{}
+
     const writeRes=await fetch(endpoint,{
       method:"POST",
       headers:{...headers,"Content-Type":"application/json"},
@@ -78,18 +90,19 @@ export async function POST(req:Request){
 
     const written=await writeRes.json();
     const verifyRes=await fetch(endpoint+"?context=edit&_fields=id,modified,content,link",{headers,cache:"no-store"});
-    if(!verifyRes.ok)return NextResponse.json({ok:false,written:true,verified:false,error:"Contenu écrit mais relecture de vérification impossible.",previousContent:expectedContent},{status:502});
+    if(!verifyRes.ok)return NextResponse.json({ok:false,written:true,verified:false,error:"Contenu écrit mais relecture de vérification impossible.",previousContent:expectedContent,previousRevisionId},{status:502});
     const verified=await verifyRes.json();
     const verifiedRaw=String(verified.content?.raw??verified.content?.rendered??"");
     if(verifiedRaw!==proposedContent){
-      return NextResponse.json({ok:false,written:true,verified:false,error:"WordPress a enregistré un contenu différent de celui attendu.",previousContent:expectedContent,currentContent:verifiedRaw},{status:409});
+      return NextResponse.json({ok:false,written:true,verified:false,error:"WordPress a enregistré un contenu différent de celui attendu.",previousContent:expectedContent,previousRevisionId,currentContent:verifiedRaw},{status:409});
     }
 
     return NextResponse.json({
       ok:true,written:true,verified:true,locked:false,
       id:verified.id,link:verified.link,modified:verified.modified,
-      previousContent:expectedContent,
-      message:"Modification WordPress appliquée et vérifiée."
+      previousContent:expectedContent,previousRevisionId,
+      rollbackAvailable:true,
+      message:"Modification WordPress appliquée et vérifiée. Snapshot précédent conservé pour rollback."
     });
   }catch(e){
     return NextResponse.json({ok:false,error:"Opération WordPress impossible.",detail:e instanceof Error?e.message:"Erreur inconnue"},{status:500});
