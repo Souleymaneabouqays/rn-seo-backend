@@ -24,12 +24,12 @@ export async function POST(req:Request){
 
   try{
     const body=await req.json();
-    const {id,type,expectedModified,expectedContent,proposedContent,mode="precheck",confirmation,dryRun=false}=body||{};
+    const {id,type,expectedModified,expectedContent,proposedContent,mode="precheck",confirmation,dryRun=false,rollbackContent}=body||{};
 
     if(!id||!["pages","posts"].includes(type)||!expectedModified||typeof expectedContent!=="string"||typeof proposedContent!=="string"){
       return NextResponse.json({ok:false,error:"Données de validation incomplètes."},{status:400});
     }
-    if(!["precheck","apply"].includes(mode)){
+    if(!["precheck","apply","rollback"].includes(mode)){
       return NextResponse.json({ok:false,error:"Mode d'exécution invalide."},{status:400});
     }
 
@@ -42,6 +42,28 @@ export async function POST(req:Request){
     const raw=String(current.content?.raw??current.content?.rendered??"");
     if(current.modified!==expectedModified||raw!==expectedContent){
       return NextResponse.json({ok:false,conflict:true,error:"Le contenu WordPress a changé depuis l’analyse. Nouvelle analyse obligatoire.",currentModified:current.modified},{status:409});
+    }
+
+    if(mode==="rollback"){
+      if(process.env.WORDPRESS_WRITE_ENABLED!=="true"){
+        return NextResponse.json({ok:true,ready:true,locked:true,rollbackReady:true,writeEnabled:false,id:current.id,link:current.link,message:"Rollback prêt mais écriture désactivée par l’environnement serveur."});
+      }
+      if(confirmation!=="ROLLBACK_WORDPRESS_CONTENT"||typeof rollbackContent!=="string"){
+        return NextResponse.json({ok:false,error:"Confirmation ou snapshot de rollback manquant."},{status:400});
+      }
+      const rollbackRes=await fetch(endpoint,{
+        method:"POST",
+        headers:{...headers,"Content-Type":"application/json"},
+        body:JSON.stringify({content:rollbackContent}),
+        cache:"no-store"
+      });
+      if(!rollbackRes.ok)return NextResponse.json({ok:false,error:"Rollback WordPress refusé.",status:rollbackRes.status},{status:502});
+      const verifyRollback=await fetch(endpoint+"?context=edit&_fields=id,modified,content,link",{headers,cache:"no-store"});
+      if(!verifyRollback.ok)return NextResponse.json({ok:false,rolledBack:true,verified:false,error:"Rollback effectué mais vérification impossible."},{status:502});
+      const restored=await verifyRollback.json();
+      const restoredRaw=String(restored.content?.raw??restored.content?.rendered??"");
+      if(restoredRaw!==rollbackContent)return NextResponse.json({ok:false,rolledBack:true,verified:false,error:"Le contenu restauré diffère du snapshot attendu."},{status:409});
+      return NextResponse.json({ok:true,rolledBack:true,verified:true,locked:false,id:restored.id,link:restored.link,modified:restored.modified,message:"Rollback WordPress appliqué et vérifié."});
     }
 
     if(mode==="precheck"){
