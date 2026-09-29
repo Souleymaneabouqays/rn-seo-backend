@@ -49,6 +49,31 @@ export async function POST(req:Request){
     const current=await r.json();
     if(current.modified!==expectedModified)return NextResponse.json({ok:false,conflict:true,error:"La page a changé depuis l’analyse."},{status:409});
 
+    if(mode==="rollback-widget"){
+      if(process.env.WORDPRESS_WRITE_ENABLED!=="true")return NextResponse.json({ok:true,locked:true,rollbackReady:true,message:"Rollback ciblé prêt mais écriture désactivée."});
+      if(confirmation!=="ROLLBACK_ELEMENTOR_WIDGET"||typeof rollbackData!=="string")return NextResponse.json({ok:false,error:"Confirmation ou ancienne valeur Elementor manquante."},{status:400});
+      const rollbackRaw=typeof current.meta?._elementor_data==="string"?current.meta._elementor_data:JSON.stringify(current.meta?._elementor_data||"");
+      let rollbackTree:any;
+      try{rollbackTree=JSON.parse(rollbackRaw)}catch{return NextResponse.json({ok:false,error:"Données Elementor illisibles."},{status:409})}
+      if(!replaceWidget(rollbackTree,String(widgetId),String(field),rollbackData))return NextResponse.json({ok:false,error:"Widget Elementor ciblé introuvable."},{status:404});
+      const targetedData=JSON.stringify(rollbackTree);
+      const rr=await fetch(endpoint,{method:"POST",headers:{...headers,"Content-Type":"application/json"},body:JSON.stringify({meta:{_elementor_data:targetedData}}),cache:"no-store"});
+      if(!rr.ok)return NextResponse.json({ok:false,error:"Rollback ciblé Elementor refusé.",status:rr.status},{status:502});
+      const rv=await fetch(endpoint+"?context=edit&_fields=id,modified,meta,link",{headers,cache:"no-store"});
+      if(!rv.ok)return NextResponse.json({ok:false,rolledBack:true,verified:false,error:"Rollback ciblé effectué mais vérification impossible."},{status:502});
+      const restored=await rv.json();
+      const restoredRaw=typeof restored.meta?._elementor_data==="string"?restored.meta._elementor_data:JSON.stringify(restored.meta?._elementor_data||"");
+      let restoredValue:string|null=null;
+      try{
+        const restoredTree=JSON.parse(restoredRaw);
+        const findValue=(nodes:any[]):string|null=>{for(const node of Array.isArray(nodes)?nodes:[]){if(String(node?.id||"")===String(widgetId)&&node?.settings&&typeof node.settings[field]==="string")return node.settings[field];const nested=Array.isArray(node?.elements)?findValue(node.elements):null;if(nested!==null)return nested}return null};
+        restoredValue=findValue(restoredTree);
+      }catch{}
+      if(restoredValue!==rollbackData)return NextResponse.json({ok:false,rolledBack:true,verified:false,error:"L’ancienne valeur du widget n’a pas été restaurée correctement."},{status:409});
+      let cacheCleared=false;try{const cr=await fetch(`${c.url}/wp-json/riviera-seo/v1/elementor/clear-cache`,{method:"POST",headers:{...headers,"Content-Type":"application/json"},body:JSON.stringify({post_id:restored.id}),cache:"no-store"});cacheCleared=cr.ok}catch{}
+      return NextResponse.json({ok:true,rolledBack:true,targeted:true,verified:true,cacheCleared,id:restored.id,link:restored.link,modified:restored.modified,message:cacheCleared?"Widget restauré précisément, vérifié et cache vidé.":"Widget restauré précisément et vérifié ; purge du cache non confirmée."});
+    }
+
     if(mode==="rollback"){
       if(process.env.WORDPRESS_WRITE_ENABLED!=="true")return NextResponse.json({ok:true,locked:true,rollbackReady:true,message:"Rollback Elementor prêt mais écriture désactivée."});
       if(confirmation!=="ROLLBACK_ELEMENTOR_DATA"||typeof rollbackData!=="string")return NextResponse.json({ok:false,error:"Confirmation ou snapshot Elementor manquant."},{status:400});
