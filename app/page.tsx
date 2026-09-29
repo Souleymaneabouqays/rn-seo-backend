@@ -81,13 +81,13 @@ function AgentSEO({data}:{data:GData|null}){
     const x=await r.json();setElementorPrepared({...x,loading:false});
   }catch(e){setElementorPrepared({ok:false,loading:false,error:e instanceof Error?e.message:"Préparation impossible"});}
 }}>{elementorPrepared?.loading?"Préparation…":"Préparer l’application"}</button>
-{elementorPrepared&&!elementorPrepared.loading&&<p>{elementorPrepared.ok&&elementorPrepared.prepared?"✓ Modification prête — validation finale requise.":"⚠ Préparation refusée : "+(elementorPrepared.error||"vérification impossible")}</p>}{elementorPrepared?.ok&&elementorPrepared?.prepared&&<div style={{marginTop:12,padding:"10px",border:"1px solid #dfe7e2",borderRadius:8}}><b>Validation finale</b><p>Une confirmation explicite sera demandée avant l’application sur le site.</p><div style={{marginBottom:10}}><button className="ghost" disabled={bridgeTest?.loading} onClick={async()=>{
+{elementorPrepared&&!elementorPrepared.loading&&<p>{elementorPrepared.ok&&elementorPrepared.prepared?"✓ Modification prête — validation finale requise.":"⚠ Préparation refusée : "+(elementorPrepared.error||"vérification impossible")}</p>}{elementorPrepared?.ok&&elementorPrepared?.prepared&&<div style={{marginTop:12,padding:"10px",border:"1px solid #dfe7e2",borderRadius:8}}><b>Validation finale</b><p>Une confirmation explicite sera demandée avant l’application sur le site.</p><div style={{marginBottom:10,display:"none"}}><button className="ghost" disabled={bridgeTest?.loading} onClick={async()=>{
   setBridgeTest({loading:true});
   try{
     const r=await fetch("/api/wordpress/elementor",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({mode:"bridge-test"})});
     const x=await r.json();setBridgeTest({...x,loading:false});
   }catch(e){setBridgeTest({ok:false,loading:false,error:e instanceof Error?e.message:"Test du bridge impossible"});}
-}}>{bridgeTest?.loading?"Test du bridge…":"Tester Riviera SEO Bridge"}</button>{bridgeTest&&!bridgeTest.loading&&<p>{bridgeTest.ok?"✓ Riviera SEO Bridge connecté — purge Elementor disponible.":"⚠ Bridge non confirmé : "+(bridgeTest.error||bridgeTest.message||"erreur inconnue")}</p>}</div><div style={{marginBottom:10}}><button className="ghost" disabled={elementorInspect?.loading} onClick={async()=>{
+}}>{bridgeTest?.loading?"Test du bridge…":"Tester Riviera SEO Bridge"}</button>{bridgeTest&&!bridgeTest.loading&&<p>{bridgeTest.ok?"✓ Riviera SEO Bridge connecté — purge Elementor disponible.":"⚠ Bridge non confirmé : "+(bridgeTest.error||bridgeTest.message||"erreur inconnue")}</p>}</div><div style={{marginBottom:10,display:"none"}}><button className="ghost" disabled={elementorInspect?.loading} onClick={async()=>{
   setElementorInspect({loading:true});
   try{
     const service=(wpAnalysis.pages||[]).find((p:any)=>p.type==="pages"&&p.elementor?.detected);
