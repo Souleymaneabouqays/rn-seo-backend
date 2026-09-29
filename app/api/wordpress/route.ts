@@ -52,7 +52,37 @@ export async function GET(request: Request) {
                   if(elementorEditMode==="builder"||elementorData.length>10)builder="elementor";
                 }
               }catch{}
-              found = { found:true, type, id:x.id, url:x.link, slug:x.slug, title:(x.title?.raw || x.title?.rendered || "").replace(/<[^>]+>/g,""), words:text ? text.split(/\s+/).length : 0, content:text.slice(0,10000), rawContent:String(x.content?.raw || x.content?.rendered || ""), modified:x.modified, builder, elementor:{detected:builder==="elementor",editMode:elementorEditMode,dataAvailable:elementorData.length>10} };
+              const elementorWidgets:any[]=[];
+              if(builder==="elementor"&&elementorData.length>10){
+                try{
+                  const tree=JSON.parse(elementorData);
+                  const walk=(nodes:any[])=>{
+                    for(const node of Array.isArray(nodes)?nodes:[]){
+                      const widgetType=String(node?.widgetType||"");
+                      const settings=node?.settings||{};
+                      const candidates=[
+                        ["title",settings.title],
+                        ["editor",settings.editor],
+                        ["text",settings.text],
+                        ["description",settings.description]
+                      ];
+                      for(const [field,value] of candidates){
+                        if(typeof value==="string"&&value.replace(/<[^>]+>/g," ").trim()){
+                          elementorWidgets.push({
+                            id:String(node.id||""),
+                            widgetType,
+                            field,
+                            text:value.replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim().slice(0,1200)
+                          });
+                        }
+                      }
+                      if(Array.isArray(node?.elements))walk(node.elements);
+                    }
+                  };
+                  walk(tree);
+                }catch{}
+              }
+              found = { found:true, type, id:x.id, url:x.link, slug:x.slug, title:(x.title?.raw || x.title?.rendered || "").replace(/<[^>]+>/g,""), words:text ? text.split(/\s+/).length : 0, content:text.slice(0,10000), rawContent:String(x.content?.raw || x.content?.rendered || ""), modified:x.modified, builder, elementor:{detected:builder==="elementor",editMode:elementorEditMode,dataAvailable:elementorData.length>10,widgetCount:elementorWidgets.length,widgets:elementorWidgets.slice(0,80)} };
               break;
             }
           }
