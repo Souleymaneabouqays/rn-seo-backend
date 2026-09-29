@@ -79,7 +79,20 @@ export async function POST(req:Request){
     const afterRaw=typeof after.meta?._elementor_data==="string"?after.meta._elementor_data:JSON.stringify(after.meta?._elementor_data||"");
     if(afterRaw!==proposedData)return NextResponse.json({ok:false,written:true,verified:false,error:"Les données Elementor enregistrées diffèrent du résultat attendu.",previousData},{status:409});
 
-    return NextResponse.json({ok:true,written:true,verified:true,widgetId,field,id:after.id,link:after.link,modified:after.modified,previousData,message:"Widget Elementor modifié et vérifié."});
+    let verifiedWidgetValue:string|null=null;
+    try{
+      const verifyTree=JSON.parse(afterRaw);
+      const findValue=(nodes:any[]):string|null=>{
+        for(const node of Array.isArray(nodes)?nodes:[]){
+          if(String(node?.id||"")===String(widgetId)&&node?.settings&&typeof node.settings[field]==="string")return node.settings[field];
+          const nested=Array.isArray(node?.elements)?findValue(node.elements):null;
+          if(nested!==null)return nested;
+        }
+        return null;
+      };
+      verifiedWidgetValue=findValue(verifyTree);
+    }catch{}
+    return NextResponse.json({ok:true,written:true,verified:true,widgetId,field,id:after.id,link:after.link,modified:after.modified,previousData,verifiedWidgetValue,renderRefreshNeeded:true,message:"Widget Elementor modifié et vérifié dans les données Elementor. Le rendu public doit encore être contrôlé."});
   }catch(e){
     return NextResponse.json({ok:false,error:"Opération Elementor impossible.",detail:e instanceof Error?e.message:"Erreur inconnue"},{status:500});
   }
