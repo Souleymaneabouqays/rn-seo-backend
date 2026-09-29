@@ -32,6 +32,13 @@ export async function POST(req:Request){
   try{
     const b=await req.json();
     const {id,type,widgetId,field="editor",proposedValue,expectedModified,dryRun=true,confirmation,prepareOnly=false,mode="apply",rollbackData}=b||{};
+    if(mode==="bridge-test"){
+      const headers={Authorization:auth(c)};
+      const br=await fetch(`${c.url}/wp-json/riviera-seo/v1/elementor/clear-cache`,{method:"POST",headers:{...headers,"Content-Type":"application/json"},body:JSON.stringify({test:true}),cache:"no-store"});
+      const raw=(await br.text()).slice(0,1000);
+      let response:any=raw;try{response=JSON.parse(raw)}catch{}
+      return NextResponse.json({ok:br.ok,bridge:true,status:br.status,response,message:br.ok?"Riviera SEO Bridge répond correctement.":"Le bridge WordPress n’a pas confirmé le test."},{status:br.ok?200:502});
+    }
     if(!id||!["pages","posts"].includes(type)||!widgetId||typeof proposedValue!=="string"||!expectedModified)
       return NextResponse.json({ok:false,error:"Données Elementor incomplètes."},{status:400});
 
