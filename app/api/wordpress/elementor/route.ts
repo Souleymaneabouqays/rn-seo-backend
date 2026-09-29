@@ -123,13 +123,26 @@ export async function POST(req:Request){
       };
       verifiedWidgetValue=findValue(verifyTree);
     }catch{}
+    let previousWidgetValue:string|null=null;
+    try{
+      const previousTree=JSON.parse(previousData);
+      const findPrevious=(nodes:any[]):string|null=>{
+        for(const node of Array.isArray(nodes)?nodes:[]){
+          if(String(node?.id||"")===String(widgetId)&&node?.settings&&typeof node.settings[field]==="string")return node.settings[field];
+          const nested=Array.isArray(node?.elements)?findPrevious(node.elements):null;
+          if(nested!==null)return nested;
+        }
+        return null;
+      };
+      previousWidgetValue=findPrevious(previousTree);
+    }catch{}
     let cacheCleared=false,cacheClearDetail="";
     try{
       const cr=await fetch(`${c.url}/wp-json/riviera-seo/v1/elementor/clear-cache`,{method:"POST",headers:{...headers,"Content-Type":"application/json"},body:JSON.stringify({post_id:after.id}),cache:"no-store"});
       cacheCleared=cr.ok;
       if(!cr.ok)cacheClearDetail=(await cr.text()).slice(0,300);
     }catch(e){cacheClearDetail=e instanceof Error?e.message:"Purge Elementor impossible";}
-    return NextResponse.json({ok:true,written:true,verified:true,widgetId,field,id:after.id,link:after.link,modified:after.modified,previousData,verifiedWidgetValue,cacheCleared,cacheClearDetail,renderRefreshNeeded:!cacheCleared,message:cacheCleared?"Widget Elementor modifié, vérifié et cache Elementor vidé.":"Widget Elementor modifié et vérifié, mais la purge Elementor n’a pas été confirmée."});
+    return NextResponse.json({ok:true,written:true,verified:true,widgetId,field,id:after.id,link:after.link,modified:after.modified,previousData,previousWidgetValue,verifiedWidgetValue,cacheCleared,cacheClearDetail,renderRefreshNeeded:!cacheCleared,message:cacheCleared?"Widget Elementor modifié, vérifié et cache Elementor vidé.":"Widget Elementor modifié et vérifié, mais la purge Elementor n’a pas été confirmée."});
   }catch(e){
     return NextResponse.json({ok:false,error:"Opération Elementor impossible.",detail:e instanceof Error?e.message:"Erreur inconnue"},{status:500});
   }
