@@ -31,7 +31,7 @@ export async function POST(req:Request){
   if(!sameOrigin(req))return NextResponse.json({ok:false,error:"Origine refusée."},{status:403});
   try{
     const b=await req.json();
-    const {id,type,widgetId,field="editor",proposedValue,expectedModified,dryRun=true,confirmation,prepareOnly=false}=b||{};
+    const {id,type,widgetId,field="editor",proposedValue,expectedModified,dryRun=true,confirmation,prepareOnly=false,mode="apply",rollbackData}=b||{};
     if(!id||!["pages","posts"].includes(type)||!widgetId||typeof proposedValue!=="string"||!expectedModified)
       return NextResponse.json({ok:false,error:"Données Elementor incomplètes."},{status:400});
 
@@ -41,6 +41,21 @@ export async function POST(req:Request){
     if(!r.ok)return NextResponse.json({ok:false,error:"Lecture Elementor impossible.",status:r.status},{status:502});
     const current=await r.json();
     if(current.modified!==expectedModified)return NextResponse.json({ok:false,conflict:true,error:"La page a changé depuis l’analyse."},{status:409});
+
+    if(mode==="rollback"){
+      if(process.env.WORDPRESS_WRITE_ENABLED!=="true")return NextResponse.json({ok:true,locked:true,rollbackReady:true,message:"Rollback Elementor prêt mais écriture désactivée."});
+      if(confirmation!=="ROLLBACK_ELEMENTOR_DATA"||typeof rollbackData!=="string")return NextResponse.json({ok:false,error:"Confirmation ou snapshot Elementor manquant."},{status:400});
+      let parsedRollback:any;
+      try{parsedRollback=JSON.parse(rollbackData)}catch{return NextResponse.json({ok:false,error:"Snapshot Elementor invalide."},{status:400})}
+      const rr=await fetch(endpoint,{method:"POST",headers:{...headers,"Content-Type":"application/json"},body:JSON.stringify({meta:{_elementor_data:JSON.stringify(parsedRollback)}}),cache:"no-store"});
+      if(!rr.ok)return NextResponse.json({ok:false,error:"Rollback Elementor refusé.",status:rr.status},{status:502});
+      const rv=await fetch(endpoint+"?context=edit&_fields=id,modified,meta,link",{headers,cache:"no-store"});
+      if(!rv.ok)return NextResponse.json({ok:false,rolledBack:true,verified:false,error:"Rollback effectué mais vérification impossible."},{status:502});
+      const restored=await rv.json();
+      const restoredRaw=typeof restored.meta?._elementor_data==="string"?restored.meta._elementor_data:JSON.stringify(restored.meta?._elementor_data||"");
+      if(restoredRaw!==JSON.stringify(parsedRollback))return NextResponse.json({ok:false,rolledBack:true,verified:false,error:"Snapshot Elementor restauré différent de l’original."},{status:409});
+      return NextResponse.json({ok:true,rolledBack:true,verified:true,id:restored.id,link:restored.link,modified:restored.modified,message:"Rollback Elementor appliqué et vérifié."});
+    }
 
     const raw=typeof current.meta?._elementor_data==="string"?current.meta._elementor_data:JSON.stringify(current.meta?._elementor_data||"");
     if(!raw)return NextResponse.json({ok:false,error:"Données Elementor indisponibles via l’API REST."},{status:409});
