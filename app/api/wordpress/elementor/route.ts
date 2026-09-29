@@ -57,6 +57,25 @@ export async function POST(req:Request){
       return NextResponse.json({ok:true,rolledBack:true,verified:true,id:restored.id,link:restored.link,modified:restored.modified,message:"Rollback Elementor appliqué et vérifié."});
     }
 
+    if(mode==="inspect"){
+      const inspectRaw=typeof current.meta?._elementor_data==="string"?current.meta._elementor_data:JSON.stringify(current.meta?._elementor_data||"");
+      if(!inspectRaw)return NextResponse.json({ok:false,error:"Données Elementor indisponibles."},{status:409});
+      try{
+        const inspectTree=JSON.parse(inspectRaw);
+        const findWidget=(nodes:any[]):any=>{
+          for(const node of Array.isArray(nodes)?nodes:[]){
+            if(String(node?.id||"")===String(widgetId))return node;
+            const nested=Array.isArray(node?.elements)?findWidget(node.elements):null;
+            if(nested)return nested;
+          }
+          return null;
+        };
+        const node=findWidget(inspectTree);
+        if(!node)return NextResponse.json({ok:false,error:"Widget Elementor introuvable."},{status:404});
+        return NextResponse.json({ok:true,readOnly:true,widgetId,field,value:typeof node?.settings?.[field]==="string"?node.settings[field]:null,modified:current.modified,link:current.link,message:"Lecture Elementor uniquement. Aucune écriture."});
+      }catch{return NextResponse.json({ok:false,error:"Données Elementor illisibles."},{status:409})}
+    }
+
     const raw=typeof current.meta?._elementor_data==="string"?current.meta._elementor_data:JSON.stringify(current.meta?._elementor_data||"");
     if(!raw)return NextResponse.json({ok:false,error:"Données Elementor indisponibles via l’API REST."},{status:409});
     let tree:any;
