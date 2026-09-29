@@ -24,7 +24,7 @@ export async function POST(req:Request){
 
   try{
     const body=await req.json();
-    const {id,type,expectedModified,expectedContent,proposedContent,mode="precheck",confirmation}=body||{};
+    const {id,type,expectedModified,expectedContent,proposedContent,mode="precheck",confirmation,dryRun=false}=body||{};
 
     if(!id||!["pages","posts"].includes(type)||!expectedModified||typeof expectedContent!=="string"||typeof proposedContent!=="string"){
       return NextResponse.json({ok:false,error:"Données de validation incomplètes."},{status:400});
@@ -46,6 +46,11 @@ export async function POST(req:Request){
 
     if(mode==="precheck"){
       return NextResponse.json({ok:true,ready:true,locked:true,id:current.id,link:current.link,modified:current.modified,message:"Précontrôle réussi. Écriture WordPress toujours verrouillée."});
+    }
+
+    // Dry-run validates the complete apply payload without ever writing.
+    if(dryRun===true){
+      return NextResponse.json({ok:true,ready:true,locked:true,dryRun:true,writeEnabled:process.env.WORDPRESS_WRITE_ENABLED==="true",id:current.id,link:current.link,modified:current.modified,changed:proposedContent!==expectedContent,message:"Payload d’application validé en mode simulation. Aucune écriture WordPress."});
     }
 
     // Triple safety gate. Even a confirmed UI click cannot write until the
