@@ -162,46 +162,5 @@ function AgentSEO({data}:{data:GData|null}){
   }
 }}>{dryRun?.loading?"Simulation complète en cours…":finalConfirm?"Simuler l’application des 3 modifications 🔒":"Confirmez pour continuer"}</button>
 <small>Simulation complète : le serveur reçoit les futurs contenus, mais aucune écriture WordPress n’est autorisée.</small>
-{dryRun&&!dryRun.loading&&<p>{dryRun.ok?"✓ Simulation réussie — les 3 actions sont prêtes, WordPress n’a pas été modifié.":"⚠ Simulation refusée — aucune modification WordPress effectuée."}</p>}{dryRun?.ok&&!applyResult&&<div style={{marginTop:12,padding:"12px",border:"1px solid #dfe7e2",borderRadius:10}}>
-<b>Premier test réel contrôlé</b>
-<p>Une seule modification sera appliquée : l’introduction commerciale de la page de service. L’article et le lien interne resteront inchangés.</p>
-<button className="ghost" onClick={async()=>{
-  if(!window.confirm("Confirmer l’application réelle de l’introduction sur UNE seule page WordPress ?"))return;
-  setApplyResult({loading:true});
-  try{
-    const service=(wpAnalysis.comparison.focus||[]).find((p:any)=>p.type==="pages");
-    const serviceText=service?.changes?.find((x:any)=>x.field==="Introduction / premier bloc")?.proposed;
-    if(!service||!serviceText)throw new Error("Page de service ou texte préparé introuvable.");
-    const serviceBlock='<!-- rn-seo-agent:service-intro -->\\n<p>'+serviceText+'</p>\\n<!-- /rn-seo-agent:service-intro -->';
-    const proposedContent=serviceBlock+"\\n"+service.rawContent;
-    const r=await fetch("/api/wordpress/apply",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-      id:service.id,type:service.type,expectedModified:service.modified,expectedContent:service.rawContent,
-      proposedContent,mode:"apply",confirmation:"APPLY_APPROVED_SEO_CHANGES"
-    })});
-    const x=await r.json();
-    setApplyResult({...x,type:service.type,currentContent:proposedContent});
-  }catch(e){setApplyResult({ok:false,error:e instanceof Error?e.message:"Application impossible"});}
-}}>Appliquer 1 modification réelle</button>
-<small>Une confirmation navigateur supplémentaire sera demandée avant l’écriture.</small>
-</div>}{applyResult?.ok&&<div style={{marginTop:12,padding:"12px",border:"1px solid #dfe7e2",borderRadius:10}}>
-<b>Modification WordPress appliquée</b>
-<p>✓ Écriture vérifiée sur WordPress.</p>
-<p>✓ Version précédente conservée pour restauration.</p>
-{applyResult.link&&<a href={applyResult.link} target="_blank" rel="noreferrer">Vérifier la page ↗</a>}
-<div style={{marginTop:10}}><button className="ghost" disabled={applyResult.rollbackLoading} onClick={async()=>{
-  if(!window.confirm("Restaurer la version WordPress précédente ?"))return;
-  setApplyResult((x:any)=>({...x,rollbackLoading:true}));
-  try{
-    const r=await fetch("/api/wordpress/apply",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-      id:applyResult.id,type:applyResult.type,expectedModified:applyResult.modified,
-      expectedContent:applyResult.currentContent||"",proposedContent:applyResult.currentContent||"",
-      mode:"rollback",confirmation:"ROLLBACK_WORDPRESS_CONTENT",
-      rollbackContent:applyResult.previousContent
-    })});
-    const x=await r.json();
-    setApplyResult((old:any)=>({...old,rollbackLoading:false,rollback:x}));
-  }catch{setApplyResult((old:any)=>({...old,rollbackLoading:false,rollback:{ok:false}}));}
-}}>{applyResult.rollbackLoading?"Restauration en cours…":"Annuler / Restaurer la version précédente"}</button></div>
-{applyResult.rollback&&<p>{applyResult.rollback.ok&&applyResult.rollback.rolledBack?"✓ Version précédente restaurée et vérifiée.":"⚠ Restauration non effectuée."}</p>}
-</div>}</div>}</div>}</div></div>}{Object.values(approved).some(Boolean)&&Object.values(approved).filter(Boolean).length!==3&&<button className="ghost" disabled>Application WordPress verrouillée 🔒</button>}</div></div></div><div style={{marginTop:18}}><b>Plan de correction proposé</b>{wpAnalysis.comparison.plan?.map((step:any,i:number)=><div className="action" key={i}><span className="badge info">{i+1}</span><div><b>{step.label} · {step.action}</b><p>{step.details}</p><small>{new URL(step.target).pathname}</small></div></div>)}</div><p><b>Aucune modification n'a été appliquée à WordPress.</b> Le plan doit être approuvé avant toute écriture.</p></div>}</div>:<p>{wpAnalysis?.error||"Préparation de l'analyse…"}</p>}</div></div>}</div>)}</div></div></>
+{dryRun&&!dryRun.loading&&<p>{dryRun.ok?"✓ Simulation réussie — les 3 actions sont prêtes, WordPress n’a pas été modifié.":"⚠ Simulation refusée — aucune modification WordPress effectuée."}</p>}{dryRun?.ok&&<p><small>✓ Contrôles serveur terminés. Utilisez le parcours « Application de la recommandation » ci-dessus pour publier en toute sécurité.</small></p>}}</div>}</div>}</div></div>}{Object.values(approved).some(Boolean)&&Object.values(approved).filter(Boolean).length!==3&&<button className="ghost" disabled>Application WordPress verrouillée 🔒</button>}</div></div></div><div style={{marginTop:18}}><b>Plan de correction proposé</b>{wpAnalysis.comparison.plan?.map((step:any,i:number)=><div className="action" key={i}><span className="badge info">{i+1}</span><div><b>{step.label} · {step.action}</b><p>{step.details}</p><small>{new URL(step.target).pathname}</small></div></div>)}</div><p><b>Aucune modification n'a été appliquée à WordPress.</b> Le plan doit être approuvé avant toute écriture.</p></div>}</div>:<p>{wpAnalysis?.error||"Préparation de l'analyse…"}</p>}</div></div>}</div>)}</div></div></>
 }
