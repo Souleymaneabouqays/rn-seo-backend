@@ -82,7 +82,7 @@ export async function GET(request: Request) {
                   walk(tree);
                 }catch{}
               }
-              found = { found:true, type, id:x.id, url:x.link, slug:x.slug, title:(x.title?.raw || x.title?.rendered || "").replace(/<[^>]+>/g,""), words:text ? text.split(/\s+/).length : 0, content:text.slice(0,10000), rawContent:String(x.content?.raw || x.content?.rendered || ""), modified:x.modified, builder, elementor:{detected:builder==="elementor",editMode:elementorEditMode,dataAvailable:elementorData.length>10,widgetCount:elementorWidgets.length,widgets:elementorWidgets.slice(0,80)} };
+              found = { found:true, type, id:x.id, url:x.link, slug:x.slug, title:(x.title?.raw || x.title?.rendered || "").replace(/<[^>]+>/g,""), words:text ? text.split(/\s+/).length : 0, content:text.slice(0,10000), rawContent:String(x.content?.raw || x.content?.rendered || ""), modified:x.modified, builder, elementor:{detected:builder==="elementor",editMode:elementorEditMode,dataAvailable:elementorData.length>10,widgetCount:elementorWidgets.length,widgets:elementorWidgets.slice(0,80),candidates:elementorWidgets.filter((w:any)=>w.field==="editor").map((w:any)=>({id:w.id,field:w.field,widgetType:w.widgetType,text:w.text,score:(w.text.toLowerCase().includes("punaise")?3:0)+(w.text.toLowerCase().includes("marseille")?2:0)+(w.text.length>180?1:0)})).sort((a:any,b:any)=>b.score-a.score).slice(0,8)} };
               break;
             }
           }
