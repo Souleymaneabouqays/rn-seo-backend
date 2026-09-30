@@ -167,7 +167,19 @@ export async function POST(req:Request){
       cacheCleared=cr.ok;
       if(!cr.ok)cacheClearDetail=(await cr.text()).slice(0,300);
     }catch(e){cacheClearDetail=e instanceof Error?e.message:"Purge Elementor impossible";}
-    return NextResponse.json({ok:true,written:true,verified:true,widgetId,field,id:after.id,link:after.link,modified:after.modified,previousData,previousWidgetValue,verifiedWidgetValue,cacheCleared,cacheClearDetail,renderRefreshNeeded:!cacheCleared,message:cacheCleared?"Widget Elementor modifié, vérifié et cache Elementor vidé.":"Widget Elementor modifié et vérifié, mais la purge Elementor n’a pas été confirmée."});
+    let publicVerified=false,publicVerifyDetail="";
+    if(cacheCleared&&after.link){
+      try{
+        const pr=await fetch(after.link,{cache:"no-store",headers:{"Cache-Control":"no-cache"}});
+        const html=await pr.text();
+        const plain=(s:string)=>s.replace(/<[^>]*>/g," ").replace(/&nbsp;/g," ").replace(/&#039;/g,"'").replace(/&quot;/g,'"').replace(/&amp;/g,"&").replace(/\s+/g," ").trim();
+        const expected=plain(proposedValue);
+        const rendered=plain(html);
+        publicVerified=pr.ok&&expected.length>0&&rendered.includes(expected);
+        if(!publicVerified)publicVerifyDetail=pr.ok?"Le nouveau texte n’est pas encore visible dans le HTML public.":"Lecture publique refusée ("+pr.status+").";
+      }catch(e){publicVerifyDetail=e instanceof Error?e.message:"Vérification publique impossible";}
+    }
+    return NextResponse.json({ok:true,written:true,verified:true,publicVerified,publicVerifyDetail,widgetId,field,id:after.id,link:after.link,modified:after.modified,previousData,previousWidgetValue,verifiedWidgetValue,cacheCleared,cacheClearDetail,renderRefreshNeeded:!publicVerified,message:publicVerified?"Widget Elementor modifié, vérifié et visible publiquement.":cacheCleared?"Widget Elementor modifié et vérifié ; rendu public à confirmer.":"Widget Elementor modifié et vérifié, mais la purge Elementor n’a pas été confirmée."});
   }catch(e){
     return NextResponse.json({ok:false,error:"Opération Elementor impossible.",detail:e instanceof Error?e.message:"Erreur inconnue"},{status:500});
   }
